@@ -9,9 +9,10 @@ const BulkWriter = function BulkWriter(client, options) {
   this.options = options;
   this.interval = options.interval || 5000;
   this.waitForActiveShards = options.waitForActiveShards;
+  // 流操作
   this.pipeline = options.pipeline;
 
-  this.bulk = []; // bulk to be flushed
+  this.bulk = []; // 准备bulk的数组
   this.running = false;
   this.timer = false;
   console.log('created', this);
@@ -43,7 +44,7 @@ BulkWriter.prototype.tick = function tick() {
   if (!this.running) { return; }
   this.flush()
     .then(() => {
-      // Emulate finally with last .then()
+      // finally with last .then()
     })
     .then(() => { // finally()
       thiz.schedule();
@@ -71,8 +72,7 @@ BulkWriter.prototype.flush = function flush() {
 BulkWriter.prototype.append = function append(index, type, doc) {
   if (this.options.buffering === true) {
     if (typeof this.options.bufferLimit === 'number' && this.bulk.length >= this.options.bufferLimit) {
-      console.log('message discarded because buffer limit exceeded');
-      // @todo: i guess we can use callback to notify caller
+      console.log('大于预设长度直接排除');
       return;
     }
     this.bulk.push({
@@ -94,31 +94,28 @@ BulkWriter.prototype.write = function write(body) {
     if (res.errors && res.items) {
       res.items.forEach((item) => {
         if (item.index && item.index.error) {
-          // eslint-disable-next-line no-console
           console.error('Elasticsearch index error', item.index);
         }
       });
     }
-  }).catch((e) => { // prevent [DEP0018] DeprecationWarning
-    // rollback this.bulk array
+  }).catch((e) => { // 满足条件的重试机制
     const lenSum = thiz.bulk.length + body.length;
     if (thiz.options.bufferLimit && (lenSum >= thiz.options.bufferLimit)) {
       thiz.bulk = body.concat(thiz.bulk.slice(0, thiz.options.bufferLimit - body.length));
     } else {
       thiz.bulk = body.concat(thiz.bulk);
     }
-    // eslint-disable-next-line no-console
     console.error(e);
     console.log('error occurred', e);
     this.stop();
     this.checkEsConnection();
   });
 };
-
+// 链接并执行带有重试机制
 BulkWriter.prototype.checkEsConnection = function checkEsConnection() {
   const thiz = this;
   thiz.esConnection = false;
-
+  // 重试机制的预设
   const operation = retry.operation({
     forever: true,
     retries: 1,
@@ -133,12 +130,7 @@ BulkWriter.prototype.checkEsConnection = function checkEsConnection() {
       thiz.client.ping().then(
         (res) => {
           thiz.esConnection = true;
-          // Ensure mapping template is existing if desired
-          if (thiz.options.ensureMappingTemplate) {
-            thiz.ensureMappingTemplate(fulfill, reject);
-          } else {
-            fulfill(true);
-          }
+          fulfill(true);
           if (thiz.options.buffering === true) {
             console.log('starting bulk writer');
             thiz.running = true;
@@ -156,41 +148,6 @@ BulkWriter.prototype.checkEsConnection = function checkEsConnection() {
       );
     });
   });
-};
-
-BulkWriter.prototype.ensureMappingTemplate = function ensureMappingTemplate(fulfill, reject) {
-  const thiz = this;
-  // eslint-disable-next-line prefer-destructuring
-  let mappingTemplate = thiz.options.mappingTemplate;
-  if (mappingTemplate === null || typeof mappingTemplate === 'undefined') {
-    const rawdata = fs.readFileSync(path.join(__dirname, 'index-template-mapping.json'));
-    mappingTemplate = JSON.parse(rawdata);
-  }
-  const tmplCheckMessage = {
-    name: 'template_' + (typeof thiz.options.indexPrefix === 'function' ? thiz.options.indexPrefix() : thiz.options.indexPrefix)
-  };
-  thiz.client.indices.getTemplate(tmplCheckMessage).then(
-    (res) => {
-      fulfill(res);
-    },
-    (res) => {
-      if (res.status && res.status === 404) {
-        const tmplMessage = {
-          name: 'template_' + (typeof thiz.options.indexPrefix === 'function' ? thiz.options.indexPrefix() : thiz.options.indexPrefix),
-          create: true,
-          body: mappingTemplate
-        };
-        thiz.client.indices.putTemplate(tmplMessage).then(
-          (res1) => {
-            fulfill(res1);
-          },
-          (err1) => {
-            reject(err1);
-          }
-        );
-      }
-    }
-  );
 };
 
 module.exports = BulkWriter;
