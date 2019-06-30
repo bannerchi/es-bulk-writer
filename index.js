@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const Promise = require('promise');
-const debug = require('debug')('winston:elasticsearch');
+// const console.log = require('console.log')('winston:elasticsearch');
 const retry = require('retry');
 
 const BulkWriter = function BulkWriter(client, options) {
@@ -14,12 +14,12 @@ const BulkWriter = function BulkWriter(client, options) {
   this.bulk = []; // bulk to be flushed
   this.running = false;
   this.timer = false;
-  debug('created', this);
+  console.log('created', this);
 };
 
 BulkWriter.prototype.start = function start() {
   this.checkEsConnection();
-  debug('started');
+  console.log('started');
 };
 
 BulkWriter.prototype.stop = function stop() {
@@ -27,7 +27,7 @@ BulkWriter.prototype.stop = function stop() {
   if (!this.timer) { return; }
   clearTimeout(this.timer);
   this.timer = null;
-  debug('stopped');
+  console.log('stopped');
 };
 
 BulkWriter.prototype.schedule = function schedule() {
@@ -38,7 +38,7 @@ BulkWriter.prototype.schedule = function schedule() {
 };
 
 BulkWriter.prototype.tick = function tick() {
-  debug('tick');
+  console.log('tick');
   const thiz = this;
   if (!this.running) { return; }
   this.flush()
@@ -53,7 +53,7 @@ BulkWriter.prototype.tick = function tick() {
 BulkWriter.prototype.flush = function flush() {
   // write bulk to elasticsearch
   if (this.bulk.length === 0) {
-    debug('nothing to flush');
+    console.log('nothing to flush');
     return new Promise((resolve) => {
       return resolve();
     });
@@ -64,14 +64,14 @@ BulkWriter.prototype.flush = function flush() {
   bulk.forEach(({ index, type, doc }) => {
     body.push({ index: { _index: index, _type: type, pipeline: this.pipeline } }, doc);
   });
-  debug('bulk writer is going to write', body);
+  console.log('bulk writer is going to write', body);
   return this.write(body);
 };
 
 BulkWriter.prototype.append = function append(index, type, doc) {
   if (this.options.buffering === true) {
     if (typeof this.options.bufferLimit === 'number' && this.bulk.length >= this.options.bufferLimit) {
-      debug('message discarded because buffer limit exceeded');
+      console.log('message discarded because buffer limit exceeded');
       // @todo: i guess we can use callback to notify caller
       return;
     }
@@ -109,7 +109,7 @@ BulkWriter.prototype.write = function write(body) {
     }
     // eslint-disable-next-line no-console
     console.error(e);
-    debug('error occurred', e);
+    console.log('error occurred', e);
     this.stop();
     this.checkEsConnection();
   });
@@ -129,7 +129,7 @@ BulkWriter.prototype.checkEsConnection = function checkEsConnection() {
   });
   return new Promise((fulfill, reject) => {
     operation.attempt((currentAttempt) => {
-      debug('checking for connection');
+      console.log('checking for connection');
       thiz.client.ping().then(
         (res) => {
           thiz.esConnection = true;
@@ -140,13 +140,13 @@ BulkWriter.prototype.checkEsConnection = function checkEsConnection() {
             fulfill(true);
           }
           if (thiz.options.buffering === true) {
-            debug('starting bulk writer');
+            console.log('starting bulk writer');
             thiz.running = true;
             thiz.tick();
           }
         },
         (err) => {
-          debug('checking for connection');
+          console.log('checking for connection');
           if (operation.retry(err)) {
             return;
           }
