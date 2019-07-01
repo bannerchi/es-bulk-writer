@@ -8,6 +8,7 @@ const retry = require('retry');
     interval: 5000,
     waitForActiveShards: true,
     pipeline,
+    buffering: true,//是否开启缓存模式
     bufferLimit: 20
   }
 **/
