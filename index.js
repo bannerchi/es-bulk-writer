@@ -3,7 +3,14 @@ const fs = require('fs');
 const path = require('path');
 const Promise = require('promise');
 const retry = require('retry');
-
+/**
+  options:{
+    interval: 5000,
+    waitForActiveShards: true,
+    pipeline,
+    bufferLimit: 20
+  }
+**/
 const BulkWriter = function BulkWriter(client, options) {
   this.client = client;
   this.options = options;
