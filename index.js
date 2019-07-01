@@ -1,7 +1,7 @@
+//elasticsearch ^16.0.0
 const fs = require('fs');
 const path = require('path');
 const Promise = require('promise');
-// const console.log = require('console.log')('winston:elasticsearch');
 const retry = require('retry');
 
 const BulkWriter = function BulkWriter(client, options) {
